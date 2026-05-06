@@ -85,6 +85,22 @@ impl OctreeNode {
         self.children.is_empty()
     }
 
+    fn height(&self) -> i32 {
+        if self.is_leaf() {
+            1
+        } else {
+            1 + self.children.iter().map(|child| child.height()).max().unwrap_or(0)
+        }
+    }
+
+    fn n_points(&self) -> i32 {
+        if self.is_leaf() {
+            self.points.len() as i32
+        } else {
+            self.children.iter().map(|child| child.n_points()).sum()
+        }
+    }
+
     fn insert(&mut self, point: Point3D) -> bool {
         if !self.bounding_box.contains(&point) {
             // Point outside the bounding box cannot be inserted
