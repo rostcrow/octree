@@ -82,7 +82,17 @@ impl OctreeNode {
     }
 
     fn is_leaf(&self) -> bool {
-        self.children.is_empty()
+        if self.children.is_empty() {
+            true
+        } else {
+            if self.children.len() != 8 {
+                panic!("Internal node must have exactly 8 children");
+            }
+            if !self.points.is_empty() {
+                panic!("Internal node cannot have points");
+            }
+            false
+        }
     }
 
     fn height(&self) -> i32 {
