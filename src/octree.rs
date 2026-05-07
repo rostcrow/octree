@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Point3D {
@@ -127,10 +128,10 @@ impl OctreeNode {
         }
     }
 
-    fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
+    fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         if !self.bounding_box.contains(&point) {
             // Point outside the bounding box cannot be inserted
-            return false;
+            return Err(format!("Point {:?} is outside the bounding box {:?} and cannot be inserted", point, self.bounding_box));
         }
 
         if self.is_leaf() {
@@ -151,11 +152,11 @@ impl OctreeNode {
                     }
                 }
                 self.references.clear();
-                true
+                Ok(())
             } else {
                 // Empty leaf or duplicate point: just insert
                 self.references.push(RecordReference::new(point, record_id));
-                true
+                Ok(())
             }
         } else {
             // Internal node: delegate to the appropriate child
@@ -214,7 +215,7 @@ impl Octree {
         self.root.n_references()
     }
 
-    fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
+    fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         self.root.insert(point, record_id)
     }
 
@@ -232,13 +233,13 @@ trait Location {
 }
 
 struct OctreeDB<T>
-where T: Location,
+where T: Location + Debug
 {
     data: Vec<T>,
     octree: Octree,
 }
 
-impl<T: Location> OctreeDB<T> {
+impl<T: Location + Debug> OctreeDB<T> {
     fn empty(bounding_box: BoundingBox) -> Self {
         let octree = Octree::new(bounding_box);
         OctreeDB { data: Vec::new(), octree }
@@ -247,11 +248,11 @@ impl<T: Location> OctreeDB<T> {
     fn insert(&mut self, record: T) -> Result<(), String> {
         let point = record.point();
         let record_id = self.data.len() as u64;
-        if self.octree.insert(point, record_id) {
+        if self.octree.insert(point, record_id).is_ok() {
             self.data.push(record);
             Ok(())
         } else {
-            Err(format!("Record with point {:?} is outside the bounding box {:?} and cannot be inserted", point, self.octree.root.bounding_box))
+            Err(format!("Record {:?} with point {:?} is outside the bounding box {:?} and cannot be inserted", record, point, self.octree.root.bounding_box))
         }
     }
 
@@ -468,7 +469,7 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(!node.insert(Point3D::new(-0.1, 0.5, 0.5), 1));
+        assert!(node.insert(Point3D::new(-0.1, 0.5, 0.5), 1).is_err());
     }
 
     #[test]
@@ -477,7 +478,7 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1).is_ok());
         assert!(node.is_leaf());
         assert_eq!(node.n_references(), 1);
         assert_eq!(node.height(), 1);
@@ -490,7 +491,7 @@ mod tests {
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
         for i in 0..10 {
-            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i));
+            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i).is_ok());
         }
         assert!(!node.is_leaf());
         assert_eq!(node.n_references(), 10);
@@ -503,8 +504,8 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 2));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1).is_ok());
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 2).is_ok());
         assert!(node.is_leaf());
         assert_eq!(node.n_references(), 2);
         assert_eq!(node.height(), 1);
@@ -517,9 +518,9 @@ mod tests {
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
         for i in 0..10 {
-            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i));
+            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i).is_ok());
         }
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 10));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 10).is_ok());
 
         assert_eq!(node.find(&Point3D::new(0.5, 0.5, 0.5)), vec![5, 10]);
         assert_eq!(node.find(&Point3D::new(0.1, 0.1, 0.1)), vec![1]);
@@ -535,18 +536,18 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(node.insert(Point3D::new(0.0, 0.0, 0.0), 0));
-        assert!(node.insert(Point3D::new(0.1, 0.1, 0.1), 1));
-        assert!(node.insert(Point3D::new(0.2, 0.2, 0.2), 2));
-        assert!(node.insert(Point3D::new(0.3, 0.3, 0.3), 3));
-        assert!(node.insert(Point3D::new(0.4, 0.4, 0.4), 4));
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 5));
-        assert!(node.insert(Point3D::new(0.6, 0.6, 0.6), 6));
-        assert!(node.insert(Point3D::new(0.7, 0.7, 0.7), 7));
-        assert!(node.insert(Point3D::new(0.8, 0.8, 0.8), 8));
-        assert!(node.insert(Point3D::new(0.9, 0.9, 0.9), 9));
-        assert!(node.insert(Point3D::new(1.0, 1.0, 1.0), 10));
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 11));
+        assert!(node.insert(Point3D::new(0.0, 0.0, 0.0), 0).is_ok());
+        assert!(node.insert(Point3D::new(0.1, 0.1, 0.1), 1).is_ok());
+        assert!(node.insert(Point3D::new(0.2, 0.2, 0.2), 2).is_ok());
+        assert!(node.insert(Point3D::new(0.3, 0.3, 0.3), 3).is_ok());
+        assert!(node.insert(Point3D::new(0.4, 0.4, 0.4), 4).is_ok());
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 5).is_ok());
+        assert!(node.insert(Point3D::new(0.6, 0.6, 0.6), 6).is_ok());
+        assert!(node.insert(Point3D::new(0.7, 0.7, 0.7), 7).is_ok());
+        assert!(node.insert(Point3D::new(0.8, 0.8, 0.8), 8).is_ok());
+        assert!(node.insert(Point3D::new(0.9, 0.9, 0.9), 9).is_ok());
+        assert!(node.insert(Point3D::new(1.0, 1.0, 1.0), 10).is_ok());
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 11).is_ok());
 
         let range = BoundingBox::new(Point3D::new(0.2, 0.2, 0.2), Point3D::new(0.6, 0.6, 0.6)).unwrap();
         let found = node.find_in_range(&range);
@@ -565,7 +566,7 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1).is_ok());
         let range = BoundingBox::new(Point3D::new(1.1, 1.1, 1.1), Point3D::new(2.0, 2.0, 2.0)).unwrap();
         let found = node.find_in_range(&range);
         assert!(found.is_empty());
@@ -577,9 +578,9 @@ mod tests {
         let max = Point3D::new(1.0, 1.0, 1.0);
         let bbox = BoundingBox::new(min, max).unwrap();
         let mut node = OctreeNode::new_leaf(bbox);
-        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
-        assert!(node.insert(Point3D::new(0.55, 0.55, 0.55), 2));
-        assert!(node.insert(Point3D::new(0.46, 0.46, 0.46), 3));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1).is_ok());
+        assert!(node.insert(Point3D::new(0.55, 0.55, 0.55), 2).is_ok());
+        assert!(node.insert(Point3D::new(0.46, 0.46, 0.46), 3).is_ok());
         let range1 = BoundingBox::new(Point3D::new(2.0, 2.0, 2.0), Point3D::new(3.0, 3.0, 3.0)).unwrap();
         let range2 = BoundingBox::new(Point3D::new(0.4, 0.4, 0.4), Point3D::new(0.45, 0.45, 0.45)).unwrap();
         let range3 = BoundingBox::new(Point3D::new(0.6, 0.6, 0.6), Point3D::new(0.7, 0.7, 0.7)).unwrap();
