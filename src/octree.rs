@@ -13,6 +13,18 @@ impl Point3D {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
+struct RecordReference {
+    point: Point3D,
+    record_id: u64,
+}
+
+impl RecordReference {
+    fn new(point: Point3D, record_id: u64) -> Self {
+        RecordReference { point, record_id }
+    }
+}
+
 #[derive(Copy, Clone)]
 struct BoundingBox {
     min: Point3D,
@@ -68,7 +80,7 @@ impl BoundingBox {
 
 struct OctreeNode {
     bounding_box: BoundingBox,
-    points: Vec<Point3D>,
+    references: Vec<RecordReference>,
     children: Vec<OctreeNode>,
 }
 
@@ -76,7 +88,7 @@ impl OctreeNode {
     fn new_leaf(bounding_box: BoundingBox) -> Self {
         OctreeNode {
             bounding_box,
-            points: Vec::new(),
+            references: Vec::new(),
             children: Vec::with_capacity(8),
         }
     }
@@ -88,8 +100,8 @@ impl OctreeNode {
             if self.children.len() != 8 {
                 panic!("Internal node must have exactly 8 children");
             }
-            if !self.points.is_empty() {
-                panic!("Internal node cannot have points");
+            if !self.references.is_empty() {
+                panic!("Internal node cannot have references");
             }
             false
         }
@@ -103,15 +115,15 @@ impl OctreeNode {
         }
     }
 
-    fn n_points(&self) -> i32 {
+    fn n_references(&self) -> u64 {
         if self.is_leaf() {
-            self.points.len() as i32
+            self.references.len() as u64
         } else {
-            self.children.iter().map(|child| child.n_points()).sum()
+            self.children.iter().map(|child| child.n_references()).sum()
         }
     }
 
-    fn insert(&mut self, point: Point3D) -> bool {
+    fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
         if !self.bounding_box.contains(&point) {
             // Point outside the bounding box cannot be inserted
             return false;
@@ -119,33 +131,33 @@ impl OctreeNode {
 
         if self.is_leaf() {
             // Leaf node: insert point or subdivide if necessary
-            if self.points.iter().any(|&p| p.ne(&point)) {
+            if self.references.iter().any(|&r| r.point.ne(&point)) {
                 // Subdivide the leaf node
                 let children_boxes = self.bounding_box.split();
                 for b in &children_boxes {
                     self.children.push(OctreeNode::new_leaf(*b));
                 }
                 
-                self.points.push(point);
-                for &p in &self.points {
-                    if let Some(region) = self.bounding_box.region(&p) {
-                        self.children[region].insert(p);
+                self.references.push(RecordReference::new(point, record_id));
+                for &r in &self.references {
+                    if let Some(region) = self.bounding_box.region(&r.point) {
+                        self.children[region].insert(r.point, r.record_id);
                     } else {
                         panic!("Point should be within the bounding box, but is not");
                     }
                 }
-                self.points.clear();
+                self.references.clear();
                 true
             } else {
                 // Empty leaf or duplicate point: just insert
-                self.points.push(point);
+                self.references.push(RecordReference::new(point, record_id));
                 true
             }
         } else {
             // Internal node: delegate to the appropriate child
             let region = self.bounding_box.region(&point);
             if let Some(region) = region {
-                self.children[region].insert(point)
+                self.children[region].insert(point, record_id)
             } else {
                 panic!("Point should be within the bounding box, but is not");
             }
