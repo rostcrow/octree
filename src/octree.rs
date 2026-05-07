@@ -1,6 +1,6 @@
 use core::panic;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Point3D {
     x: f64,
     y: f64,
@@ -25,7 +25,7 @@ impl RecordReference {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct BoundingBox {
     min: Point3D,
     max: Point3D,
@@ -226,6 +226,66 @@ impl Octree {
         self.root.find_in_range(range)
     }
 }
+
+trait Location {
+    fn point(&self) -> Point3D;
+}
+
+struct OctreeDB<T>
+where T: Location,
+{
+    data: Vec<T>,
+    octree: Octree,
+}
+
+impl<T: Location> OctreeDB<T> {
+    fn empty(bounding_box: BoundingBox) -> Self {
+        let octree = Octree::new(bounding_box);
+        OctreeDB { data: Vec::new(), octree }
+    }
+
+    fn insert(&mut self, record: T) -> Result<(), String> {
+        let point = record.point();
+        let record_id = self.data.len() as u64;
+        if self.octree.insert(point, record_id) {
+            self.data.push(record);
+            Ok(())
+        } else {
+            Err(format!("Record with point {:?} is outside the bounding box {:?} and cannot be inserted", point, self.octree.root.bounding_box))
+        }
+    }
+
+    fn new(bounding_box: BoundingBox, records: Vec<T>) -> Result<Self, String> {
+        let mut db = OctreeDB::empty(bounding_box);
+        for record in records {
+            db.insert(record)?;
+        }
+        Ok(db)
+    }
+
+    fn n_records(&self) -> u64 {
+        self.data.len() as u64
+    }
+
+    fn find_by_id(&self, record_id: u64) -> Option<&T> {
+        self.data.get(record_id as usize)
+    }
+
+    fn find_by_ids(&self, record_ids: &[u64]) -> Vec<&T> {
+        record_ids.iter().filter_map(|&id| self.data.get(id as usize)).collect()
+    }
+
+    fn find_by_point(&self, point: &Point3D) -> Vec<&T> {
+        let record_ids = self.octree.find(point);
+        self.find_by_ids(&record_ids)
+    }
+
+    fn find_by_range(&self, range: &BoundingBox) -> Vec<&T> {
+        let record_ids = self.octree.find_in_range(range);
+        self.find_by_ids(&record_ids)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
