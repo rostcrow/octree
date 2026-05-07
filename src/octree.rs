@@ -232,14 +232,25 @@ trait Location {
     fn point(&self) -> Point3D;
 }
 
+struct Record<T> {
+    id: u64,
+    data: T,
+}
+
+impl<T> Record<T> {
+    fn new(id: u64, data: T) -> Self {
+        Record { id, data }
+    }
+}
+
 struct OctreeDB<T>
-where T: Location + Debug
+where T: Location + Debug + Clone
 {
     data: Vec<T>,
     octree: Octree,
 }
 
-impl<T: Location + Debug> OctreeDB<T> {
+impl<T: Location + Debug + Clone> OctreeDB<T> {
     fn empty(bounding_box: BoundingBox) -> Self {
         let octree = Octree::new(bounding_box);
         OctreeDB { data: Vec::new(), octree }
@@ -268,20 +279,21 @@ impl<T: Location + Debug> OctreeDB<T> {
         self.data.len() as u64
     }
 
-    fn find_by_id(&self, record_id: u64) -> Option<&T> {
-        self.data.get(record_id as usize)
+    fn find_by_id(&self, record_id: u64) -> Option<Record<T>> {
+        let got = self.data.get(record_id as usize);
+        got.map(|record| Record::new(record_id, record.clone()))
+    }
+    
+    fn find_by_ids(&self, record_ids: &[u64]) -> Vec<Record<T>> {
+        record_ids.iter().filter_map(|&id| self.data.get(id as usize).map(|record| Record::new(id, record.clone()))).collect()
     }
 
-    fn find_by_ids(&self, record_ids: &[u64]) -> Vec<&T> {
-        record_ids.iter().filter_map(|&id| self.data.get(id as usize)).collect()
-    }
-
-    fn find_by_point(&self, point: &Point3D) -> Vec<&T> {
+    fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
         let record_ids = self.octree.find(point);
         self.find_by_ids(&record_ids)
     }
 
-    fn find_by_range(&self, range: &BoundingBox) -> Vec<&T> {
+    fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
         let record_ids = self.octree.find_in_range(range);
         self.find_by_ids(&record_ids)
     }
