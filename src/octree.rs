@@ -601,4 +601,141 @@ mod tests {
         assert!(node.find_in_range(&range3).is_empty());
     }
 
+    #[derive(Debug, Clone)]
+    struct DummyRecord {
+        value: u32,
+        location: Point3D,
+    }
+
+    impl DummyRecord {
+        fn new(value: u32, location: Point3D) -> Self {
+            DummyRecord { value, location }
+        }
+    }
+
+    impl Location for DummyRecord {
+        fn point(&self) -> Point3D {
+            self.location
+        }
+    }
+
+    #[test]
+    fn octree_db_empty() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let db: OctreeDB<DummyRecord> = OctreeDB::empty(bbox);
+        assert_eq!(db.n_records(), 0);
+    }
+
+    #[test]
+    fn octree_db_insert() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut db: OctreeDB<DummyRecord> = OctreeDB::empty(bbox);
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        assert!(db.insert(record1.clone()).is_ok());
+        assert_eq!(db.n_records(), 1);
+        let record2 = DummyRecord::new(43, Point3D::new(5.0, 0.5, 0.5));
+        assert!(db.insert(record2.clone()).is_err());
+        assert_eq!(db.n_records(), 1);
+    }
+
+    #[test]
+    fn octree_db_new_empty() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, Vec::new()).unwrap();
+        assert_eq!(db.n_records(), 0);
+    }
+
+    #[test]
+    fn octree_db_new_with_records() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]).unwrap();
+        assert_eq!(db.n_records(), 2);
+    }
+
+    #[test]
+    fn octree_db_new_error() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(5.0, 0.5, 0.5));
+        let db: Result<OctreeDB<DummyRecord>, String> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]);
+        assert!(db.is_err());
+    }
+
+    #[test]
+    fn octree_db_find_by_id() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]).unwrap();
+        let found1 = db.find_by_id(0);
+        assert!(found1.is_some());
+        assert_eq!(found1.unwrap().data.value, 42);
+        let found2 = db.find_by_id(1);
+        assert!(found2.is_some());
+        assert_eq!(found2.unwrap().data.value, 43);
+        let found3 = db.find_by_id(2);
+        assert!(found3.is_none());
+    }
+
+    #[test]
+    fn octree_db_find_by_ids() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]).unwrap();
+        let found = db.find_by_ids(&[0, 1, 63]);
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].data.value, 42);
+        assert_eq!(found[1].data.value, 43);
+    }
+
+    #[test]
+    fn octree_db_find_by_point() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]).unwrap();
+        let found1 = db.find_by_point(&Point3D::new(0.5, 0.5, 0.5));
+        assert_eq!(found1.len(), 1);
+        assert_eq!(found1[0].data.value, 42);
+        let found2 = db.find_by_point(&Point3D::new(0.6, 0.6, 0.6));
+        assert_eq!(found2.len(), 1);
+        assert_eq!(found2[0].data.value, 43);
+        let found3 = db.find_by_point(&Point3D::new(0.7, 0.7, 0.7));
+        assert!(found3.is_empty());
+    }
+
+    #[test]
+    fn octree_db_find_by_range() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
+        let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
+        let db: OctreeDB<DummyRecord> = OctreeDB::new(bbox, vec![record1.clone(), record2.clone()]).unwrap();
+        let range = BoundingBox::new(Point3D::new(0.4, 0.4, 0.4), Point3D::new(0.55, 0.55, 0.55)).unwrap();
+        let found = db.find_by_range(&range);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].data.value, 42);
+    }
+
+
 }
