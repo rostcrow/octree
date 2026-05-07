@@ -161,6 +161,20 @@ impl OctreeNode {
             }
         }
     }
+
+    fn find(&self, point: &Point3D) -> Vec<u64> {
+        if !self.bounding_box.contains(point) {
+            return Vec::new();
+        }
+
+        if self.is_leaf() {
+            self.references.iter().filter(|&r| r.point == *point).map(|r| r.record_id).collect()
+        } else {
+            let region = self.bounding_box.region(point).unwrap();
+            self.children[region].find(point)
+        }
+    }
+
 }
 
 struct Octree {
@@ -184,6 +198,10 @@ impl Octree {
 
     fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
         self.root.insert(point, record_id)
+    }
+
+    fn find(&self, point: &Point3D) -> Vec<u64> {
+        self.root.find(point)
     }
 }
 
@@ -389,5 +407,23 @@ mod tests {
         assert_eq!(node.height(), 1);
     }
 
+    #[test]
+    fn octree_node_find() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        for i in 0..10 {
+            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i));
+        }
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 10));
+
+        assert_eq!(node.find(&Point3D::new(0.5, 0.5, 0.5)), vec![5, 10]);
+        assert_eq!(node.find(&Point3D::new(0.1, 0.1, 0.1)), vec![1]);
+        assert_eq!(node.find(&Point3D::new(0.9, 0.9, 0.9)), vec![9]);
+        assert_eq!(node.find(&Point3D::new(0.0, 0.0, 0.0)), vec![0]);
+        assert_eq!(node.find(&Point3D::new(0.15, 0.15, 0.15)), Vec::<u64>::new());
+        assert_eq!(node.find(&Point3D::new(1.1, 1.1, 1.1)), Vec::<u64>::new());
+    }
 
 }
