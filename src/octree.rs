@@ -164,3 +164,27 @@ impl OctreeNode {
         }
     }
 }
+
+struct Octree {
+    root: OctreeNode,
+}
+
+impl Octree {
+    fn new(bounding_box: BoundingBox) -> Self {
+        Octree {
+            root: OctreeNode::new_leaf(bounding_box),
+        }
+    }
+
+    fn height(&self) -> i32 {
+        self.root.height()
+    }
+
+    fn n_references(&self) -> u64 {
+        self.root.n_references()
+    }
+
+    fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
+        self.root.insert(point, record_id)
+    }
+}
