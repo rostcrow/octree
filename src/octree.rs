@@ -112,7 +112,7 @@ impl OctreeNode {
         }
     }
 
-    fn height(&self) -> i32 {
+    fn height(&self) -> u32 {
         if self.is_leaf() {
             1
         } else {
@@ -207,7 +207,7 @@ impl Octree {
         }
     }
 
-    fn height(&self) -> i32 {
+    fn height(&self) -> u32 {
         self.root.height()
     }
 
@@ -277,6 +277,10 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
 
     fn n_records(&self) -> u64 {
         self.data.len() as u64
+    }
+
+    fn octree_height(&self) -> u32 {
+        self.octree.height()
     }
 
     fn find_by_id(&self, record_id: u64) -> Option<Record<T>> {
