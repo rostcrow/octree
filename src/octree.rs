@@ -181,6 +181,18 @@ impl OctreeNode {
         }
     }
 
+    fn find_in_range(&self, range: &BoundingBox) -> Vec<u64> {
+        if !self.bounding_box.intersects(range) {
+            return Vec::new();
+        }
+
+        if self.is_leaf() {
+            self.references.iter().filter(|&r| range.contains(&r.point)).map(|r| r.record_id).collect()
+        } else {
+            self.children.iter().flat_map(|child| child.find_in_range(range)).collect()
+        }
+    }
+
 }
 
 struct Octree {
@@ -208,6 +220,10 @@ impl Octree {
 
     fn find(&self, point: &Point3D) -> Vec<u64> {
         self.root.find(point)
+    }
+
+    fn find_in_range(&self, range: &BoundingBox) -> Vec<u64> {
+        self.root.find_in_range(range)
     }
 }
 
@@ -451,6 +467,65 @@ mod tests {
         assert_eq!(node.find(&Point3D::new(0.0, 0.0, 0.0)), vec![0]);
         assert_eq!(node.find(&Point3D::new(0.15, 0.15, 0.15)), Vec::<u64>::new());
         assert_eq!(node.find(&Point3D::new(1.1, 1.1, 1.1)), Vec::<u64>::new());
+    }
+
+    #[test]
+    fn octree_node_find_in_range() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.insert(Point3D::new(0.0, 0.0, 0.0), 0));
+        assert!(node.insert(Point3D::new(0.1, 0.1, 0.1), 1));
+        assert!(node.insert(Point3D::new(0.2, 0.2, 0.2), 2));
+        assert!(node.insert(Point3D::new(0.3, 0.3, 0.3), 3));
+        assert!(node.insert(Point3D::new(0.4, 0.4, 0.4), 4));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 5));
+        assert!(node.insert(Point3D::new(0.6, 0.6, 0.6), 6));
+        assert!(node.insert(Point3D::new(0.7, 0.7, 0.7), 7));
+        assert!(node.insert(Point3D::new(0.8, 0.8, 0.8), 8));
+        assert!(node.insert(Point3D::new(0.9, 0.9, 0.9), 9));
+        assert!(node.insert(Point3D::new(1.0, 1.0, 1.0), 10));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 11));
+
+        let range = BoundingBox::new(Point3D::new(0.2, 0.2, 0.2), Point3D::new(0.6, 0.6, 0.6)).unwrap();
+        let found = node.find_in_range(&range);
+        assert_eq!(found.len(), 6);
+        assert!(found.contains(&2));
+        assert!(found.contains(&3));
+        assert!(found.contains(&4));
+        assert!(found.contains(&5));
+        assert!(found.contains(&11));
+        assert!(found.contains(&6));
+    }
+
+    #[test]
+    fn octree_node_find_in_range_outside() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        let range = BoundingBox::new(Point3D::new(1.1, 1.1, 1.1), Point3D::new(2.0, 2.0, 2.0)).unwrap();
+        let found = node.find_in_range(&range);
+        assert!(found.is_empty());
+    }
+
+    #[test]
+    fn octree_node_find_in_range_nothing_found() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.insert(Point3D::new(0.55, 0.55, 0.55), 2));
+        assert!(node.insert(Point3D::new(0.46, 0.46, 0.46), 3));
+        let range1 = BoundingBox::new(Point3D::new(2.0, 2.0, 2.0), Point3D::new(3.0, 3.0, 3.0)).unwrap();
+        let range2 = BoundingBox::new(Point3D::new(0.4, 0.4, 0.4), Point3D::new(0.45, 0.45, 0.45)).unwrap();
+        let range3 = BoundingBox::new(Point3D::new(0.6, 0.6, 0.6), Point3D::new(0.7, 0.7, 0.7)).unwrap();
+        assert!(node.find_in_range(&range1).is_empty());
+        assert!(node.find_in_range(&range2).is_empty());
+        assert!(node.find_in_range(&range3).is_empty());
     }
 
 }
