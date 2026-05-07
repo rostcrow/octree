@@ -32,8 +32,12 @@ struct BoundingBox {
 }
 
 impl BoundingBox {
-    fn new(min: Point3D, max: Point3D) -> Self {
-        BoundingBox { min, max }
+    fn new(min: Point3D, max: Point3D) -> Option<Self> {
+        if min.x > max.x || min.y > max.y || min.z > max.z {
+            None
+        } else {
+            Some(BoundingBox { min, max })
+        }
     }
 
     fn contains(&self, point: &Point3D) -> bool {
@@ -54,26 +58,20 @@ impl BoundingBox {
         Some(index)
     }
 
-    fn intersects(&self, other: &BoundingBox) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x &&
-        self.min.y <= other.max.y && self.max.y >= other.min.y &&
-        self.min.z <= other.max.z && self.max.z >= other.min.z
-    }
-
     fn split(&self) -> [BoundingBox; 8] {
         let mid_x = (self.min.x + self.max.x) / 2.0;
         let mid_y = (self.min.y + self.max.y) / 2.0;
         let mid_z = (self.min.z + self.max.z) / 2.0;
 
         [
-            BoundingBox::new(Point3D::new(self.min.x, self.min.y, self.min.z), Point3D::new(mid_x, mid_y, mid_z)),
-            BoundingBox::new(Point3D::new(mid_x, self.min.y, self.min.z), Point3D::new(self.max.x, mid_y, mid_z)),
-            BoundingBox::new(Point3D::new(self.min.x, mid_y, self.min.z), Point3D::new(mid_x, self.max.y, mid_z)),
-            BoundingBox::new(Point3D::new(mid_x, mid_y, self.min.z), Point3D::new(self.max.x, self.max.y, mid_z)),
-            BoundingBox::new(Point3D::new(self.min.x, self.min.y, mid_z), Point3D::new(mid_x, mid_y, self.max.z)),
-            BoundingBox::new(Point3D::new(mid_x, self.min.y, mid_z), Point3D::new(self.max.x, mid_y, self.max.z)),
-            BoundingBox::new(Point3D::new(self.min.x, mid_y, mid_z), Point3D::new(mid_x, self.max.y, self.max.z)),
-            BoundingBox::new(Point3D::new(mid_x, mid_y, mid_z), Point3D::new(self.max.x, self.max.y, self.max.z)),
+            BoundingBox::new(Point3D::new(self.min.x, self.min.y, self.min.z), Point3D::new(mid_x, mid_y, mid_z)).unwrap(),
+            BoundingBox::new(Point3D::new(mid_x, self.min.y, self.min.z), Point3D::new(self.max.x, mid_y, mid_z)).unwrap(),
+            BoundingBox::new(Point3D::new(self.min.x, mid_y, self.min.z), Point3D::new(mid_x, self.max.y, mid_z)).unwrap(),
+            BoundingBox::new(Point3D::new(mid_x, mid_y, self.min.z), Point3D::new(self.max.x, self.max.y, mid_z)).unwrap(),
+            BoundingBox::new(Point3D::new(self.min.x, self.min.y, mid_z), Point3D::new(mid_x, mid_y, self.max.z)).unwrap(),
+            BoundingBox::new(Point3D::new(mid_x, self.min.y, mid_z), Point3D::new(self.max.x, mid_y, self.max.z)).unwrap(),
+            BoundingBox::new(Point3D::new(self.min.x, mid_y, mid_z), Point3D::new(mid_x, self.max.y, self.max.z)).unwrap(),
+            BoundingBox::new(Point3D::new(mid_x, mid_y, mid_z), Point3D::new(self.max.x, self.max.y, self.max.z)).unwrap(),
         ]
     }
 }
@@ -187,4 +185,209 @@ impl Octree {
     fn insert(&mut self, point: Point3D, record_id: u64) -> bool {
         self.root.insert(point, record_id)
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn bounding_box_new_correct() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max);
+        assert!(bbox.is_some());
+    }
+
+    #[test]
+    fn bounding_box_new_incorrect() {
+        let min = Point3D::new(1.0, 1.0, 1.0);
+        let max = Point3D::new(0.0, 0.0, 0.0);
+        let bbox = BoundingBox::new(min, max);
+        assert!(bbox.is_none());
+    }
+
+    #[test]
+    fn bounding_box_empty() {
+        let min = Point3D::new(1.0, 1.0, 1.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        assert!(bbox.contains(&min));
+        assert!(bbox.contains(&max));
+    }
+
+    #[test]
+    fn bounding_box_contains() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        assert!(bbox.contains(&Point3D::new(0.5, 0.5, 0.5)));
+        assert!(!bbox.contains(&Point3D::new(-0.1, 0.5, 0.5)));
+        assert!(bbox.contains(&min));
+        assert!(bbox.contains(&max));
+    }
+
+    #[test]
+    fn bounding_box_region() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        assert_eq!(bbox.region(&Point3D::new(0.25, 0.25, 0.25)), Some(0));
+        assert_eq!(bbox.region(&Point3D::new(-0.1, 0.5, 0.5)), None);
+    }
+
+    #[test]
+    fn bounding_box_region_split_connection() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let children = bbox.split();
+        let test_points = [
+            Point3D::new(0.00, 0.00,0.00),
+            Point3D::new(0.25, 0.25, 0.25),
+            Point3D::new(0.75, 0.25, 0.25),
+            Point3D::new(0.25, 0.75, 0.25),
+            Point3D::new(0.75, 0.75, 0.25),
+            Point3D::new(0.25, 0.25, 0.75),
+            Point3D::new(0.75, 0.25, 0.75),
+            Point3D::new(0.25, 0.75, 0.75),
+            Point3D::new(0.75, 0.75, 0.75),
+            Point3D::new(1.0, 1.0, 1.0),
+        ];
+        for point in &test_points {
+            let region = bbox.region(point).unwrap();
+            assert!(children[region].contains(point));
+        }
+    }
+
+    #[test]
+    fn octree_node_new_leaf() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let node = OctreeNode::new_leaf(bbox);
+        assert!(node.is_leaf());
+        assert_eq!(node.references.len(), 0);
+        assert_eq!(node.children.len(), 0);
+    }
+
+    #[test]
+    fn octree_node_is_leaf() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.is_leaf());
+        for _ in 0..8 {
+            node.children.push(OctreeNode::new_leaf(bbox));
+        }
+        assert!(!node.is_leaf());
+    }
+
+    #[test]
+    #[should_panic]
+    fn octree_node_is_leaf_children_and_references() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        node.children.push(OctreeNode::new_leaf(bbox));
+        node.references.push(RecordReference::new(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.is_leaf());
+    }
+
+    #[test]
+    #[should_panic]
+    fn octree_node_is_leaf_wrong_number_of_children() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        for _ in 0..7 {
+            node.children.push(OctreeNode::new_leaf(bbox));
+        }
+        assert!(!node.is_leaf());
+    }
+
+    #[test]
+    fn octree_node_height() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert_eq!(node.height(), 1);
+        for _ in 0..8 {
+            node.children.push(OctreeNode::new_leaf(bbox));
+        }
+        assert_eq!(node.height(), 2);
+    }
+
+    #[test]
+    fn octree_node_n_references() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert_eq!(node.n_references(), 0);
+        node.references.push(RecordReference::new(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert_eq!(node.n_references(), 1);
+        node.references.pop();
+        for _ in 0..8 {
+            node.children.push(OctreeNode::new_leaf(bbox));
+        }
+        assert_eq!(node.n_references(), 0);
+        node.children[0].references.push(RecordReference::new(Point3D::new(0.25, 0.25, 0.25), 2));
+        assert_eq!(node.n_references(), 1);
+    }
+
+    #[test]
+    fn octree_node_insert_outside() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(!node.insert(Point3D::new(-0.1, 0.5, 0.5), 1));
+    }
+
+    #[test]
+    fn octree_node_insert_leaf() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.is_leaf());
+        assert_eq!(node.n_references(), 1);
+        assert_eq!(node.height(), 1);
+    }
+
+    #[test]
+    fn octree_node_insert_subdivide() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        for i in 0..10 {
+            assert!(node.insert(Point3D::new(0.1 * i as f64, 0.1 * i as f64, 0.1 * i as f64), i));
+        }
+        assert!(!node.is_leaf());
+        assert_eq!(node.n_references(), 10);
+        assert_eq!(node.height(), 5);
+    }
+
+    #[test]
+    fn octree_node_insert_duplicate() {
+        let min = Point3D::new(0.0, 0.0, 0.0);
+        let max = Point3D::new(1.0, 1.0, 1.0);
+        let bbox = BoundingBox::new(min, max).unwrap();
+        let mut node = OctreeNode::new_leaf(bbox);
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 1));
+        assert!(node.insert(Point3D::new(0.5, 0.5, 0.5), 2));
+        assert!(node.is_leaf());
+        assert_eq!(node.n_references(), 2);
+        assert_eq!(node.height(), 1);
+    }
+
+
 }
