@@ -58,6 +58,12 @@ impl BoundingBox {
         Some(index)
     }
 
+    fn intersects(&self, other: &BoundingBox) -> bool {
+        self.max.x >= other.min.x && self.min.x <= other.max.x &&
+        self.max.y >= other.min.y && self.min.y <= other.max.y &&
+        self.max.z >= other.min.z && self.min.z <= other.max.z
+    }
+
     fn split(&self) -> [BoundingBox; 8] {
         let mid_x = (self.min.x + self.max.x) / 2.0;
         let mid_y = (self.min.y + self.max.y) / 2.0;
@@ -244,6 +250,27 @@ mod tests {
         assert!(!bbox.contains(&Point3D::new(-0.1, 0.5, 0.5)));
         assert!(bbox.contains(&min));
         assert!(bbox.contains(&max));
+    }
+
+    #[test]
+    fn bounding_box_intersects() {
+        let bbox1 = BoundingBox::new(Point3D::new(0.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 1.0)).unwrap();
+        let bbox2 = BoundingBox::new(Point3D::new(0.5, 0.5, 0.5), Point3D::new(1.5, 1.5, 1.5)).unwrap();
+        let bbox3 = BoundingBox::new(Point3D::new(1.1, 1.1, 1.1), Point3D::new(2.0, 2.0, 2.0)).unwrap();
+        let bbox4 = BoundingBox::new(Point3D::new(1.0, 1.0, 1.0), Point3D::new(2.0, 2.0, 2.0)).unwrap();
+        let bbox5 = BoundingBox::new(Point3D::new(1.0, 1.0, 1.0), Point3D::new(1.0, 1.0, 1.0)).unwrap();
+        let bbox6 = BoundingBox::new(Point3D::new(-0.1, -0.1, -0.1), Point3D::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(bbox1.intersects(&bbox2));
+        assert!(!bbox1.intersects(&bbox3));
+        assert!(bbox1.intersects(&bbox1));
+        assert!(bbox2.intersects(&bbox2));
+        assert!(bbox3.intersects(&bbox3));
+        assert!(bbox4.intersects(&bbox4));
+        assert!(bbox1.intersects(&bbox4));
+        assert!(bbox5.intersects(&bbox5));
+        assert!(bbox6.intersects(&bbox6));
+        assert!(bbox1.intersects(&bbox5));
+        assert!(bbox1.intersects(&bbox6));
     }
 
     #[test]
