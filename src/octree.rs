@@ -349,12 +349,12 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         record_ids.iter().filter_map(|&id| self.data.get(id as usize).map(|record| Record::new(id, record.clone()))).collect()
     }
 
-    fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
+    pub fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
         let record_ids = self.octree.find(point);
         self.find_by_ids(&record_ids)
     }
 
-    fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
+    pub fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
         let record_ids = self.octree.find_in_range(range);
         self.find_by_ids(&record_ids)
     }
