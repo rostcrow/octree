@@ -2,7 +2,7 @@ use core::panic;
 use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct Point3D {
+pub struct Point3D {
     x: f64,
     y: f64,
     z: f64,
@@ -27,7 +27,7 @@ impl RecordReference {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct BoundingBox {
+pub struct BoundingBox {
     min: Point3D,
     max: Point3D,
 }
@@ -228,11 +228,11 @@ impl Octree {
     }
 }
 
-trait Location {
+pub trait Location {
     fn point(&self) -> Point3D;
 }
 
-struct Record<T> {
+pub struct Record<T> {
     id: u64,
     data: T,
 }
@@ -243,7 +243,7 @@ impl<T> Record<T> {
     }
 }
 
-struct OctreeDB<T>
+pub struct OctreeDB<T>
 where T: Location + Debug + Clone
 {
     data: Vec<T>,
