@@ -2,14 +2,14 @@ use core::panic;
 use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct Point3D {
-    x: f64,
-    y: f64,
-    z: f64,
+pub struct Point3D {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Point3D {
-    fn new(x: f64, y: f64, z: f64) -> Self {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
         Point3D { x, y, z }
     }
 }
@@ -27,13 +27,13 @@ impl RecordReference {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct BoundingBox {
-    min: Point3D,
-    max: Point3D,
+pub struct BoundingBox {
+    pub min: Point3D,
+    pub max: Point3D,
 }
 
 impl BoundingBox {
-    fn new(min: Point3D, max: Point3D) -> Option<Self> {
+    pub fn new(min: Point3D, max: Point3D) -> Option<Self> {
         if min.x > max.x || min.y > max.y || min.z > max.z {
             None
         } else {
@@ -128,6 +128,21 @@ impl OctreeNode {
         }
     }
 
+    fn size_bytes(&self) -> usize {
+        let self_size = std::mem::size_of::<Self>();
+        let references_size = self.references.len() * std::mem::size_of::<RecordReference>();
+        let children_size: usize = self.children.iter().map(|child| child.size_bytes()).sum();
+        self_size + references_size + children_size
+    }
+
+    fn n_nodes(&self) -> u64 {
+        if self.is_leaf() {
+            1
+        } else {
+            1 + self.children.iter().map(|child| child.n_nodes()).sum::<u64>()
+        }
+    }
+
     fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         if !self.bounding_box.contains(&point) {
             // Point outside the bounding box cannot be inserted
@@ -215,6 +230,14 @@ impl Octree {
         self.root.n_references()
     }
 
+    fn size_bytes(&self) -> usize {
+        self.root.size_bytes()
+    }
+
+    fn n_nodes(&self) -> u64 {
+        self.root.n_nodes()
+    }
+
     fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         self.root.insert(point, record_id)
     }
@@ -228,11 +251,11 @@ impl Octree {
     }
 }
 
-trait Location {
+pub trait Location {
     fn point(&self) -> Point3D;
 }
 
-struct Record<T> {
+pub struct Record<T> {
     id: u64,
     data: T,
 }
@@ -243,7 +266,7 @@ impl<T> Record<T> {
     }
 }
 
-struct OctreeDB<T>
+pub struct OctreeDB<T>
 where T: Location + Debug + Clone
 {
     data: Vec<T>,
@@ -275,7 +298,7 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         Ok(db)
     }
 
-    fn from_data(data: Vec<T>) -> Result<Self, String> {
+    pub fn from_data(data: Vec<T>) -> Result<Self, String> {
         if data.is_empty() {
             return Err("Data vector cannot be empty, bounding box can't be determined".to_string());
         }
@@ -301,12 +324,24 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         OctreeDB::new(bounding_box, data)
     }
 
-    fn n_records(&self) -> u64 {
+    pub fn n_records(&self) -> u64 {
         self.data.len() as u64
     }
 
-    fn octree_height(&self) -> u32 {
+    pub fn octree_bounding_box(&self) -> BoundingBox {
+        self.octree.root.bounding_box
+    }
+
+    pub fn octree_height(&self) -> u32 {
         self.octree.height()
+    }
+
+    pub fn octree_size_bytes(&self) -> usize {
+        self.octree.size_bytes()
+    }
+
+    pub fn octree_n_nodes(&self) -> u64 {
+        self.octree.n_nodes()
     }
 
     fn find_by_id(&self, record_id: u64) -> Option<Record<T>> {
@@ -318,12 +353,12 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         record_ids.iter().filter_map(|&id| self.data.get(id as usize).map(|record| Record::new(id, record.clone()))).collect()
     }
 
-    fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
+    pub fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
         let record_ids = self.octree.find(point);
         self.find_by_ids(&record_ids)
     }
 
-    fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
+    pub fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
         let record_ids = self.octree.find_in_range(range);
         self.find_by_ids(&record_ids)
     }
