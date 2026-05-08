@@ -256,8 +256,8 @@ pub trait Location {
 }
 
 pub struct Record<T> {
-    id: u64,
-    data: T,
+    pub id: u64,
+    pub data: T,
 }
 
 impl<T> Record<T> {
