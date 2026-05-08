@@ -275,7 +275,7 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         Ok(db)
     }
 
-    fn fromData(data: Vec<T>) -> Result<Self, String> {
+    fn from_data(data: Vec<T>) -> Result<Self, String> {
         if data.is_empty() {
             return Err("Data vector cannot be empty, bounding box can't be determined".to_string());
         }
@@ -705,14 +705,14 @@ mod tests {
 
     #[test]
     fn octree_db_from_data_empty() {
-        let db: Result<OctreeDB<DummyRecord>, String> = OctreeDB::fromData(Vec::new());
+        let db: Result<OctreeDB<DummyRecord>, String> = OctreeDB::from_data(Vec::new());
         assert!(db.is_err());
     }
 
     #[test]
     fn octree_db_from_data_one_record() {
         let record = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
-        let db: OctreeDB<DummyRecord> = OctreeDB::fromData(vec![record.clone()]).unwrap();
+        let db: OctreeDB<DummyRecord> = OctreeDB::from_data(vec![record.clone()]).unwrap();
         assert_eq!(db.n_records(), 1);
         assert!(db.octree.root.bounding_box.eq(&BoundingBox::new(Point3D::new(0.5, 0.5, 0.5), Point3D::new(0.5, 0.5, 0.5)).unwrap()));
     }
@@ -722,7 +722,7 @@ mod tests {
         let record1 = DummyRecord::new(42, Point3D::new(0.5, 0.5, 0.5));
         let record2 = DummyRecord::new(43, Point3D::new(0.6, 0.6, 0.6));
         let record3 = DummyRecord::new(44, Point3D::new(0.4, 0.7, 0.55));
-        let db: OctreeDB<DummyRecord> = OctreeDB::fromData(vec![record1.clone(), record2.clone(), record3.clone()]).unwrap();
+        let db: OctreeDB<DummyRecord> = OctreeDB::from_data(vec![record1.clone(), record2.clone(), record3.clone()]).unwrap();
         assert_eq!(db.n_records(), 3);
         assert!(db.octree.root.bounding_box.eq(&BoundingBox::new(Point3D::new(0.4, 0.5, 0.5), Point3D::new(0.6, 0.7, 0.6)).unwrap()));
     }
