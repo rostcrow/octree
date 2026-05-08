@@ -1,6 +1,7 @@
 use core::panic;
 use std::fmt::Debug;
 
+/// Represents a point in 3D space.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point3D {
     pub x: f64,
@@ -9,11 +10,15 @@ pub struct Point3D {
 }
 
 impl Point3D {
+    /// Creates a new `Point3D` with the given coordinates.
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Point3D { x, y, z }
     }
 }
 
+/// Represents a reference to a record.
+/// 
+/// This reference is stored in the octree, containing the point and the record ID.
 #[derive(Copy, Clone, PartialEq)]
 struct RecordReference {
     point: Point3D,
@@ -21,11 +26,13 @@ struct RecordReference {
 }
 
 impl RecordReference {
+    /// Creates a new `RecordReference` with the given point and record ID.
     fn new(point: Point3D, record_id: u64) -> Self {
         RecordReference { point, record_id }
     }
 }
 
+/// Represents an axis-aligned bounding box in 3D space, defined by its minimum and maximum corners.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct BoundingBox {
     pub min: Point3D,
@@ -33,6 +40,7 @@ pub struct BoundingBox {
 }
 
 impl BoundingBox {
+    /// Creates a new `BoundingBox` with the given minimum and maximum points.
     pub fn new(min: Point3D, max: Point3D) -> Option<Self> {
         if min.x > max.x || min.y > max.y || min.z > max.z {
             None
@@ -41,12 +49,14 @@ impl BoundingBox {
         }
     }
 
+    /// Checks if the bounding box contains the given point.
     fn contains(&self, point: &Point3D) -> bool {
         self.min.x <= point.x && point.x <= self.max.x &&
         self.min.y <= point.y && point.y <= self.max.y &&
         self.min.z <= point.z && point.z <= self.max.z
     }
 
+    /// Determines which of the 8 octants the point belongs to within this bounding box.
     fn region(self, point: &Point3D) -> Option<usize> {
         if !self.contains(point) {
             return None;
@@ -59,12 +69,14 @@ impl BoundingBox {
         Some(index)
     }
 
+    /// Checks if the bounding box intersects with another bounding box.
     fn intersects(&self, other: &BoundingBox) -> bool {
         self.max.x >= other.min.x && self.min.x <= other.max.x &&
         self.max.y >= other.min.y && self.min.y <= other.max.y &&
         self.max.z >= other.min.z && self.min.z <= other.max.z
     }
 
+    /// Splits the bounding box into 8 octants.
     fn split(&self) -> [BoundingBox; 8] {
         let mid_x = (self.min.x + self.max.x) / 2.0;
         let mid_y = (self.min.y + self.max.y) / 2.0;
@@ -83,6 +95,7 @@ impl BoundingBox {
     }
 }
 
+/// Represents a node in the octree, which can be either a leaf or an internal node.
 struct OctreeNode {
     bounding_box: BoundingBox,
     references: Vec<RecordReference>,
@@ -90,6 +103,7 @@ struct OctreeNode {
 }
 
 impl OctreeNode {
+    /// Creates a new leaf node with the given bounding box.
     fn new_leaf(bounding_box: BoundingBox) -> Self {
         OctreeNode {
             bounding_box,
@@ -98,6 +112,7 @@ impl OctreeNode {
         }
     }
 
+    /// Checks if the node is a leaf node.
     fn is_leaf(&self) -> bool {
         if self.children.is_empty() {
             true
@@ -112,6 +127,7 @@ impl OctreeNode {
         }
     }
 
+    /// Calculates the height of the subtree rooted at this node.
     fn height(&self) -> u32 {
         if self.is_leaf() {
             1
@@ -120,6 +136,7 @@ impl OctreeNode {
         }
     }
 
+    /// Returns number of `RecordReference`s in the subtree rooted at this node.
     #[allow(dead_code)]
     fn n_references(&self) -> u64 {
         if self.is_leaf() {
@@ -129,6 +146,7 @@ impl OctreeNode {
         }
     }
 
+    /// Return size of the subtree rooted at this node in bytes, including all child nodes and references.
     fn size_bytes(&self) -> usize {
         let self_size = std::mem::size_of::<Self>();
         let references_size = self.references.len() * std::mem::size_of::<RecordReference>();
@@ -136,6 +154,7 @@ impl OctreeNode {
         self_size + references_size + children_size
     }
 
+    /// Returns number of nodes in the subtree rooted at this node, including itself and all child nodes.
     fn n_nodes(&self) -> u64 {
         if self.is_leaf() {
             1
@@ -144,6 +163,7 @@ impl OctreeNode {
         }
     }
 
+    /// Inserts a point with the given record ID into the subtree rooted at this node.
     fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         if !self.bounding_box.contains(&point) {
             // Point outside the bounding box cannot be inserted
@@ -185,6 +205,7 @@ impl OctreeNode {
         }
     }
 
+    /// Finds all record IDs associated with the given point in the subtree rooted at this node.
     fn find(&self, point: &Point3D) -> Vec<u64> {
         if !self.bounding_box.contains(point) {
             return Vec::new();
@@ -198,6 +219,7 @@ impl OctreeNode {
         }
     }
 
+    /// Finds all record IDs associated with points that are within the given range in the subtree rooted at this node.
     fn find_in_range(&self, range: &BoundingBox) -> Vec<u64> {
         if !self.bounding_box.intersects(range) {
             return Vec::new();
@@ -212,62 +234,78 @@ impl OctreeNode {
 
 }
 
+/// Represents the octree data structure, which contains a root node and provides methods for inserting and querying points.
 struct Octree {
     root: OctreeNode,
 }
 
 impl Octree {
+    /// Creates a new `Octree` with the given bounding box as the root node.
     fn new(bounding_box: BoundingBox) -> Self {
         Octree {
             root: OctreeNode::new_leaf(bounding_box),
         }
     }
 
+    /// Returns the height of the octree, which is the height of the subtree rooted at the root node.
     fn height(&self) -> u32 {
         self.root.height()
     }
 
+    /// Returns number of `RecordReference`s in the octree, which is the number of references in the subtree rooted at the root node.
     #[allow(dead_code)]
     fn n_references(&self) -> u64 {
         self.root.n_references()
     }
 
+    /// Returns size of the octree in bytes, including all nodes and references.
     fn size_bytes(&self) -> usize {
         self.root.size_bytes()
     }
 
+    /// Returns number of nodes in the octree, including the root node and all child nodes.
     fn n_nodes(&self) -> u64 {
         self.root.n_nodes()
     }
 
+    /// Inserts a point with the given record ID into the octree.
     fn insert(&mut self, point: Point3D, record_id: u64) -> Result<(), String> {
         self.root.insert(point, record_id)
     }
 
+    /// Finds all record IDs associated with the given point in the octree.
     fn find(&self, point: &Point3D) -> Vec<u64> {
         self.root.find(point)
     }
 
+    /// Finds all record IDs associated with points that are within the given range in the octree.
     fn find_in_range(&self, range: &BoundingBox) -> Vec<u64> {
         self.root.find_in_range(range)
     }
 }
 
+/// Represents a trait for types that have a location in 3D space, which can be represented as a `Point3D`.
 pub trait Location {
+    /// Returns the location of the record as a `Point3D`.
     fn point(&self) -> Point3D;
 }
 
+/// Represents a record in the octree database, which contains an ID and data of type `T`.
 pub struct Record<T> {
     pub _id: u64,
     pub data: T,
 }
 
 impl<T> Record<T> {
+    /// Creates a new `Record` with the given ID and data.
     fn new(id: u64, data: T) -> Self {
         Record { _id: id, data }
     }
 }
 
+/// Represents a database that uses an octree for spatial indexing.
+/// 
+/// It containis a vector of records and an octree for efficient querying.
 pub struct OctreeDB<T>
 where T: Location + Debug + Clone
 {
@@ -276,11 +314,13 @@ where T: Location + Debug + Clone
 }
 
 impl<T: Location + Debug + Clone> OctreeDB<T> {
+    /// Creates a new empty `OctreeDB` with the given bounding box for the octree.
     fn empty(bounding_box: BoundingBox) -> Self {
         let octree = Octree::new(bounding_box);
         OctreeDB { data: Vec::new(), octree }
     }
 
+    /// Inserts a record into the database and updates the octree index accordingly.
     fn insert(&mut self, record: T) -> Result<(), String> {
         let point = record.point();
         let record_id = self.data.len() as u64;
@@ -292,6 +332,7 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         }
     }
 
+    /// Creates a new `OctreeDB` with the given bounding box and a vector of records.
     fn new(bounding_box: BoundingBox, records: Vec<T>) -> Result<Self, String> {
         let mut db = OctreeDB::empty(bounding_box);
         for record in records {
@@ -300,6 +341,7 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         Ok(db)
     }
 
+    /// Creates a new `OctreeDB` from a vector of records, automatically determining the bounding box from the data.
     pub fn from_data(data: Vec<T>) -> Result<Self, String> {
         if data.is_empty() {
             return Err("Data vector cannot be empty, bounding box can't be determined".to_string());
@@ -326,41 +368,52 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         OctreeDB::new(bounding_box, data)
     }
 
+    /// Returns the number of records in the database, which is the length of the data vector.
     pub fn n_records(&self) -> u64 {
         self.data.len() as u64
     }
 
+    /// Returns the bounding box of the octree, which is the bounding box of the root node.
     pub fn octree_bounding_box(&self) -> BoundingBox {
         self.octree.root.bounding_box
     }
 
+    /// Returns the height of the octree.
     pub fn octree_height(&self) -> u32 {
         self.octree.height()
     }
 
+    /// Returns the size of the octree in bytes, including all nodes and references.
     pub fn octree_size_bytes(&self) -> usize {
         self.octree.size_bytes()
     }
 
+    /// Returns the number of nodes in the octree, including the root node and all child nodes.
     pub fn octree_n_nodes(&self) -> u64 {
         self.octree.n_nodes()
     }
 
+    /// Finds a record by its ID in the database.
     #[allow(dead_code)]
     fn find_by_id(&self, record_id: u64) -> Option<Record<T>> {
         let got = self.data.get(record_id as usize);
         got.map(|record| Record::new(record_id, record.clone()))
     }
     
+    /// Finds records by their IDs in the database.
     fn find_by_ids(&self, record_ids: &[u64]) -> Vec<Record<T>> {
         record_ids.iter().filter_map(|&id| self.data.get(id as usize).map(|record| Record::new(id, record.clone()))).collect()
     }
 
+    /// Finds records by a point in the database, using the octree to efficiently find the record IDs and 
+    /// then retrieving the records from the data vector.
     pub fn find_by_point(&self, point: &Point3D) -> Vec<Record<T>> {
         let record_ids = self.octree.find(point);
         self.find_by_ids(&record_ids)
     }
 
+    /// Finds records by a range in the database, using the octree to efficiently find the record IDs and
+    /// then retrieving the records from the data vector.
     pub fn find_by_range(&self, range: &BoundingBox) -> Vec<Record<T>> {
         let record_ids = self.octree.find_in_range(range);
         self.find_by_ids(&record_ids)
@@ -372,6 +425,8 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
 mod tests {
 
     use super::*;
+
+    // BoundingBox tests
 
     #[test]
     fn bounding_box_new_correct() {
@@ -462,6 +517,8 @@ mod tests {
             assert!(children[region].contains(point));
         }
     }
+
+    // OctreeNode tests
 
     #[test]
     fn octree_node_new_leaf() {
@@ -668,6 +725,8 @@ mod tests {
         assert!(node.find_in_range(&range2).is_empty());
         assert!(node.find_in_range(&range3).is_empty());
     }
+
+    // OctreeDB tests
 
     #[derive(Debug, Clone)]
     struct DummyRecord {
