@@ -3,9 +3,9 @@ use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point3D {
-    x: f64,
-    y: f64,
-    z: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Point3D {
@@ -28,12 +28,12 @@ impl RecordReference {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct BoundingBox {
-    min: Point3D,
-    max: Point3D,
+    pub min: Point3D,
+    pub max: Point3D,
 }
 
 impl BoundingBox {
-    fn new(min: Point3D, max: Point3D) -> Option<Self> {
+    pub fn new(min: Point3D, max: Point3D) -> Option<Self> {
         if min.x > max.x || min.y > max.y || min.z > max.z {
             None
         } else {
@@ -326,6 +326,10 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
 
     pub fn n_records(&self) -> u64 {
         self.data.len() as u64
+    }
+
+    pub fn octree_bounding_box(&self) -> BoundingBox {
+        self.octree.root.bounding_box
     }
 
     pub fn octree_height(&self) -> u32 {

@@ -2,7 +2,7 @@
 use core::panic;
 use std::ops::Range;
 
-use crate::octree::{Location, OctreeDB, Point3D};
+use crate::octree::{BoundingBox, Location, OctreeDB, Point3D};
 use rand::prelude::*;
 use num_format::{ToFormattedString};
 
@@ -11,15 +11,25 @@ struct CoordinateRange {
     max: f64,
 }
 
+impl CoordinateRange {
+    fn new(min: f64, max: f64) -> Self {
+        CoordinateRange { min, max }
+    }
+
+    fn size(&self) -> f64 {
+        self.max - self.min
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SimpleRecord {
-    id: u64,
+    _id: u64,
     position: Point3D,
 }
 
 impl SimpleRecord {
     fn new(id: u64, position: Point3D) -> Self {
-        SimpleRecord { id, position }
+        SimpleRecord { _id: id, position }
     }
 }
 
@@ -53,6 +63,21 @@ fn choose_random_record(rng: &mut ThreadRng, records: &[SimpleRecord]) -> Simple
     records[index].clone()
 }
 
+fn random_coordinate_range(orig_range: &CoordinateRange, rng: &mut ThreadRng, range_size_perc: f64) -> CoordinateRange {
+    let range_size = orig_range.size();
+    let start_range = CoordinateRange::new(orig_range.min, orig_range.max - range_size * range_size_perc);
+    let random_start = random_from_range(rng, &start_range);
+    let random_end = random_start + range_size * range_size_perc;
+    CoordinateRange::new(random_start, random_end)
+}
+
+fn random_range(orig_bounding_box: BoundingBox, rng: &mut ThreadRng, coordinate_range_size_perc: f64) -> BoundingBox {
+    let x_range = random_coordinate_range(&CoordinateRange::new(orig_bounding_box.min.x, orig_bounding_box.max.x), rng, coordinate_range_size_perc);
+    let y_range = random_coordinate_range(&CoordinateRange::new(orig_bounding_box.min.y, orig_bounding_box.max.y), rng, coordinate_range_size_perc);
+    let z_range = random_coordinate_range(&CoordinateRange::new(orig_bounding_box.min.z, orig_bounding_box.max.z), rng, coordinate_range_size_perc);
+    BoundingBox::new(Point3D::new(x_range.min, y_range.min, z_range.min), Point3D::new(x_range.max, y_range.max, z_range.max)).unwrap()
+}
+
 pub fn run_benchmark(n_records: usize) {
     let format = num_format::CustomFormat::builder()
         .grouping(num_format::Grouping::Standard)
@@ -61,7 +86,7 @@ pub fn run_benchmark(n_records: usize) {
         .unwrap();
 
     println!("GENERATING {} RANDOM RECORDS...", n_records.to_formatted_string(&format));
-    let coord_range = CoordinateRange { min: 0.0, max: 100.0 };
+    let coord_range = CoordinateRange::new(0.0, 100.0);
     let mut rng = rand::rng();
     let records = generate_random_records(n_records, &mut rng, &coord_range, &coord_range, &coord_range);
     let records_clone = records.clone();
@@ -122,4 +147,29 @@ pub fn run_benchmark(n_records: usize) {
     println!("Avg. time for successful find by point: {:?} milliseconds ({} queries)", 1000.0 * total_success_time / total_n_sucess as f64, total_n_sucess);
     println!("Avg. time for failed find by point    : {:?} milliseconds ({} queries)", 1000.0 * total_fail_time / total_n_fail as f64, total_n_fail);
 
+    println!("\nFINDING BY RANGE...");
+    const N_RANGE_QUERIES_PER_RANGE_SIZE: usize = 100;
+    println!("Number of range queries per range size: {}", N_RANGE_QUERIES_PER_RANGE_SIZE);
+    const DIMENSION_RANGE_SIZES_PERC: [f64; 3] = [0.1, 0.25, 0.5];
+    
+    for &range_size_perc in &DIMENSION_RANGE_SIZES_PERC {
+        println!("Range dimension size {:.0}%:", range_size_perc * 100.0);
+
+        let mut total_time: f64 = 0.0;
+        let mut total_found: u32 = 0;
+
+        for _ in 0..N_RANGE_QUERIES_PER_RANGE_SIZE {
+            let query_range = random_range(db.octree_bounding_box(), &mut rng, range_size_perc);
+            let now = std::time::Instant::now();
+            let result = db.find_by_range(&query_range);
+            let elapsed = now.elapsed();
+            total_time += elapsed.as_secs_f64();
+            total_found += result.len() as u32;
+        }
+
+        let avg_time_ms = 1000.0 * total_time / N_RANGE_QUERIES_PER_RANGE_SIZE as f64;
+        let avg_found = total_found as f64 / N_RANGE_QUERIES_PER_RANGE_SIZE as f64;
+        println!("\tAvg. time for find by range: {:?} milliseconds", avg_time_ms);
+        println!("\tAvg. records found by range: {:.2} records", avg_found);
+    }
 }
