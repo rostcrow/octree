@@ -6,7 +6,7 @@ mod benchmark;
 mod mountain;
 
 fn main() {
-    let horizontal_line: &str = &"-".repeat(40);
+    let horizontal_line: &str = &"-".repeat(80);
     println!("{}", horizontal_line);
     println!("BENCHMARK");
     println!("{}", horizontal_line);
