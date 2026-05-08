@@ -120,6 +120,7 @@ impl OctreeNode {
         }
     }
 
+    #[allow(dead_code)]
     fn n_references(&self) -> u64 {
         if self.is_leaf() {
             self.references.len() as u64
@@ -161,7 +162,7 @@ impl OctreeNode {
                 self.references.push(RecordReference::new(point, record_id));
                 for &r in &self.references {
                     if let Some(region) = self.bounding_box.region(&r.point) {
-                        self.children[region].insert(r.point, r.record_id);
+                        self.children[region].insert(r.point, r.record_id)?;
                     } else {
                         panic!("Point should be within the bounding box, but is not");
                     }
@@ -226,6 +227,7 @@ impl Octree {
         self.root.height()
     }
 
+    #[allow(dead_code)]
     fn n_references(&self) -> u64 {
         self.root.n_references()
     }
@@ -256,13 +258,13 @@ pub trait Location {
 }
 
 pub struct Record<T> {
-    pub id: u64,
+    pub _id: u64,
     pub data: T,
 }
 
 impl<T> Record<T> {
     fn new(id: u64, data: T) -> Self {
-        Record { id, data }
+        Record { _id: id, data }
     }
 }
 
@@ -344,6 +346,7 @@ impl<T: Location + Debug + Clone> OctreeDB<T> {
         self.octree.n_nodes()
     }
 
+    #[allow(dead_code)]
     fn find_by_id(&self, record_id: u64) -> Option<Record<T>> {
         let got = self.data.get(record_id as usize);
         got.map(|record| Record::new(record_id, record.clone()))
