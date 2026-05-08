@@ -157,6 +157,7 @@ version = "0.1.0"
 dependencies = [
  "num-format",
  "rand",
+ "serde_json",
 ]
 
 [[package]]
